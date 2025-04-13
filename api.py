@@ -5,7 +5,7 @@ from predict import CupClassifier
 import io
 from PIL import Image
 from tortoise.contrib.fastapi import register_tortoise
-from database.models import DefectiveImage
+from database.models import DefectiveImage, ProductionTime
 import os
 
 app = FastAPI()
@@ -28,13 +28,19 @@ async def predict_image(file: UploadFile = File(...)):
         # If the prediction is defective, store the image in the database
         if result == "defective":
             await DefectiveImage.create(image_data=contents)
-        
+            await ProductionTime.create(is_defective=True)
+        else:
+            await ProductionTime.create(is_defective=False)
         # Clean up temporary file
         if os.path.exists(temp_path):
             os.remove(temp_path)
         
         return JSONResponse(content={"prediction": result})
     except Exception as e:
+        try:
+            await ProductionTime.create()
+        except Exception as e:
+            print("Error saving production time:", e)
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}
